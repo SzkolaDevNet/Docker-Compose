@@ -1,0 +1,81 @@
+version: '3'
+services:
+
+  gitlab:
+    image: 'gitlab/gitlab-ce:latest'
+    restart: unless-stopped
+    # Change the 'hostname' value to your hostname, otherwise external access may not work
+    hostname: 'docker1.ext.lan'
+    links:
+      - pgsql:postgresql
+      - redis:redis
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        postgresql['enable'] = false
+        gitlab_rails['db_username'] = "gitlab"
+        gitlab_rails['db_password'] = ""
+        gitlab_rails['db_host'] = "postgresql"
+        gitlab_rails['db_port'] = "5432"
+        gitlab_rails['db_database'] = "gitlabhq_production"
+        gitlab_rails['db_adapter'] = 'postgresql'
+        gitlab_rails['db_encoding'] = 'utf8'
+        redis['enable'] = false
+        gitlab_rails['redis_host'] = 'redis'
+        gitlab_rails['redis_port'] = '6379'
+        # Change to the valid URL matching the SSL certificate and gitlab configuration
+        external_url 'https://gitlab.on.some.domain'
+        gitlab_rails['gitlab_shell_ssh_port'] = 30022
+    ports:
+      # Both ports must match the port from external_url above
+        - "443:443"
+        - "80:80"
+      # The mapped port must match ssh_port specified above
+        - "30022:22"
+    volumes:
+      - config:/etc/gitlab:rw
+      - logs:/var/log/gitlab:rw
+      - data:/var/opt/gitlab:rw
+    networks:
+      - default
+      - gitlab
+
+  pgsql:
+    restart: unless-stopped
+    image: postgres:12.3-alpine
+    environment:
+      - POSTGRES_USER=gitlab
+      # Set correct password
+#      - POSTGRES_PASSWORD=
+      - POSTGRES_DB=gitlabhq_production
+    volumes:
+      - pgsql:/var/lib/postgresql/data:Z
+    networks:
+      - gitlab
+
+  redis:
+    restart: unless-stopped
+    image: redis:5.0.9-alpine
+    volumes:
+      - redis:/data:Z
+    networks:
+      - gitlab
+
+# In my case both networks are externally created on Docker host
+networks:
+  default:
+    external:
+      name: Lab
+  gitlab:
+    external: no
+             
+volumes:
+  pgsql:
+    driver: local
+  config:
+    driver: local
+  logs:
+    driver: local
+  data:
+    driver: local
+  redis:
+    driver: local
